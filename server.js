@@ -144,6 +144,32 @@ app.get("/api/health", (_, res) => {
   res.json({ status: "ok", environment: IS_SANDBOX ? "sandbox" : "production", timestamp: new Date().toISOString() });
 });
 
+app.post("/api/setup/generate-credentials", async (req, res) => {
+  const { subscriptionKey, callbackHost } = req.body;
+  if (!subscriptionKey) return res.status(400).json({ error: "Missing key" });
+  const userId = uuidv4();
+  try {
+    await axios.post(
+      "https://sandbox.momodeveloper.mtn.com/v1_0/apiuser",
+      { providerCallbackHost: callbackHost || "https://ecz-prep-backend-production.up.railway.app" },
+      {
+        headers: {
+          "X-Reference-Id": userId,
+          "Content-Type": "application/json",
+          "Ocp-Apim-Subscription-Key": subscriptionKey,
+        },
+      }
+    );
+    const keyRes = await axios.post(
+      `https://sandbox.momodeveloper.mtn.com/v1_0/apiuser/${userId}/apikey`,
+      {},
+      { headers: { "Ocp-Apim-Subscription-Key": subscriptionKey } }
+    );
+    return res.json({ success: true, userId, apiKey: keyRes.data.apiKey });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err?.response?.data || err.message });
+  }
+});
 app.get("/", (_, res) => res.send("ECZ Prep Payment Server is running 🚀"));
 
 const PORT = process.env.PORT || 3001;
